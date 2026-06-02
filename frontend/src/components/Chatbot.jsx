@@ -26,7 +26,9 @@ const Chatbot = () => {
 
   return (
     <section className="panel chat">
-      <h2>Chatbot de acompañamiento</h2>
+      <h2 className="chat-title">
+  🤖 MentorIA Assistant
+</h2>
       <div className="chat-window">
         {messages.map((m, idx) => (
           <div key={idx} className={`bubble ${m.from}`}>
@@ -39,7 +41,7 @@ const Chatbot = () => {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Pregúntame sobre sesiones, pagos o recomendaciones"
+        placeholder="Escribe tu mensaje..."
         />
         <button className="primary" onClick={sendMessage}>Enviar</button>
       </div>
