@@ -11,6 +11,7 @@ Plataforma SaaS para gestión y seguimiento de mentorías y coaching profesional
 ```bash
 mysql -u root -p < backend/schema.sql
 ```
+
 2) Backend:
 ```bash
 cd backend
