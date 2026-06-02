@@ -16,6 +16,10 @@ DROP TABLE IF EXISTS goals;
 DROP TABLE IF EXISTS clients;
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- ======================
+-- TABLAS
+-- ======================
+
 CREATE TABLE usuarios (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(120) NOT NULL,
@@ -38,7 +42,6 @@ CREATE TABLE user_profiles (
   calories_auto_calculated TINYINT(1) NOT NULL DEFAULT 0,
   training_frequency INT NULL,
   desired_pace ENUM('tranquilo', 'equilibrado', 'intenso') NULL,
-  recommended_exercises VARCHAR(255) NULL,
   current_weight_kg DECIMAL(5,2) NULL,
   target_weight_kg DECIMAL(5,2) NULL,
   height_cm DECIMAL(5,2) NULL,
@@ -48,8 +51,8 @@ CREATE TABLE user_profiles (
   assigned_coach_id INT NULL,
   coach_assigned_at DATETIME NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_user_profiles_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-  CONSTRAINT fk_user_profiles_coach FOREIGN KEY (assigned_coach_id) REFERENCES usuarios(id) ON DELETE SET NULL
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_coach_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 CREATE TABLE coach_applications (
@@ -58,24 +61,17 @@ CREATE TABLE coach_applications (
   bio TEXT NOT NULL,
   specialties VARCHAR(255) NOT NULL,
   experience_years INT DEFAULT 0,
-  status ENUM('pendiente', 'aprobada', 'rechazada') NOT NULL DEFAULT 'pendiente',
-  rejection_reason VARCHAR(255) NULL,
-  reviewed_by INT NULL,
-  reviewed_at DATETIME NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_coach_applications_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-  CONSTRAINT fk_coach_applications_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES usuarios(id) ON DELETE SET NULL
+  status ENUM('pendiente', 'aprobada', 'rechazada') DEFAULT 'pendiente',
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
 CREATE TABLE user_progress_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   usuario_id INT NOT NULL,
   weight_kg DECIMAL(5,2) NOT NULL,
-  notes VARCHAR(255) NULL,
+  notes VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_user_progress_logs_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-  INDEX idx_user_progress_logs_usuario (usuario_id, created_at)
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
 CREATE TABLE user_sessions (
@@ -84,13 +80,8 @@ CREATE TABLE user_sessions (
   token_hash CHAR(64) NOT NULL UNIQUE,
   user_agent VARCHAR(255) NOT NULL,
   ip_address VARCHAR(80) NOT NULL,
-  last_activity_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   expires_at DATETIME NOT NULL,
-  revoked_at DATETIME NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_user_sessions_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-  INDEX idx_user_sessions_usuario (usuario_id),
-  INDEX idx_user_sessions_expires (expires_at)
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
 CREATE TABLE password_reset_tokens (
@@ -98,90 +89,105 @@ CREATE TABLE password_reset_tokens (
   usuario_id INT NOT NULL,
   token_hash CHAR(64) NOT NULL UNIQUE,
   expires_at DATETIME NOT NULL,
-  used_at DATETIME NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_password_reset_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-  INDEX idx_password_reset_usuario (usuario_id),
-  INDEX idx_password_reset_expires (expires_at)
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
 CREATE TABLE clients (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   goal VARCHAR(200),
-  status ENUM('activo','riesgo','inactivo') DEFAULT 'activo',
-  next_session DATE,
-  score INT DEFAULT 70,
-  engagement INT DEFAULT 70,
-  avatar_url VARCHAR(255),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  status ENUM('activo','riesgo','inactivo') DEFAULT 'activo'
 );
 
 CREATE TABLE sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   client_id INT NOT NULL,
   topic VARCHAR(200),
-  date DATE,
-  time TIME,
-  status ENUM('programada','hecha','cancelada') DEFAULT 'programada',
-  location VARCHAR(120),
   FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
 );
 
 CREATE TABLE goals (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  label VARCHAR(120) NOT NULL,
-  value INT NOT NULL
+  label VARCHAR(120),
+  value INT
 );
 
 CREATE TABLE campaigns (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(180) NOT NULL,
-  tag VARCHAR(80),
-  image VARCHAR(255),
-  cta VARCHAR(120)
+  title VARCHAR(180)
 );
 
 CREATE TABLE reminders (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(200) NOT NULL,
-  time_label VARCHAR(60) NOT NULL
+  title VARCHAR(200)
 );
 
 CREATE TABLE mood (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  label VARCHAR(80) NOT NULL,
-  value INT NOT NULL
+  label VARCHAR(80),
+  value INT
 );
 
-INSERT INTO clients (name, goal, status, next_session, score, engagement, avatar_url) VALUES
-('Ana Torres', 'Bajar porcentaje de grasa', 'activo', '2026-04-22', 82, 88, 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80'),
-('Luis Perez', 'Ganar masa muscular', 'riesgo', '2026-04-23', 68, 70, 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80'),
-('Marta Diaz', 'Mantener peso y definir', 'activo', '2026-04-24', 90, 92, 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=400&q=80'),
-('Carlos Vega', 'Resistencia y enfoque', 'inactivo', '2026-04-28', 74, 60, 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=400&q=80');
+-- ======================
+-- INSERTS
+-- ======================
 
-INSERT INTO sessions (client_id, topic, date, time, status, location) VALUES
-(1, 'Plan de fuerza personalizado', '2026-04-22', '10:00', 'programada', 'Zoom'),
-(2, 'Rutina mental de alto rendimiento', '2026-04-23', '12:00', 'programada', 'Meet'),
-(3, 'Seguimiento de habitos', '2026-04-24', '09:00', 'programada', 'Zoom'),
-(4, 'Estrategia mensual', '2026-04-28', '16:00', 'programada', 'Presencial');
+-- 👤 Usuarios
+INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES
+('Juan Lopez', 'juan@example.com', '123456', 'usuario'),
+('Sofia Ramirez', 'sofia@example.com', '123456', 'usuario'),
+('Carlos Coach', 'coach@example.com', '123456', 'coach'),
+('Admin Sistema', 'admin@example.com', '123456', 'administrador');
 
-INSERT INTO goals (label, value) VALUES
-('Programas activos', 18),
-('Completados', 9),
-('En riesgo', 5);
+-- 🧾 Perfiles
+INSERT INTO user_profiles (
+  usuario_id, onboarding_completed, objetivo, daily_calories,
+  training_frequency, desired_pace, current_weight_kg,
+  target_weight_kg, height_cm, age, gender, activity_level, assigned_coach_id
+) VALUES
+(1,1,'bajar_peso',2000,3,'equilibrado',85,75,175,28,'masculino','moderado',3),
+(2,1,'ganar_musculo',2500,4,'intenso',60,68,165,25,'femenino','alto',3);
 
-INSERT INTO campaigns (title, tag, image, cta) VALUES
-('Run Black Pack', 'Precision', 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1200&q=80', 'Descubrir'),
-('Strength Minimal', 'Coach Pick', 'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1200&q=80', 'Entrenar'),
-('Nutrition Reset', 'Fit Flow', 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=80', 'Ver plan');
+-- 🧠 Coach
+INSERT INTO coach_applications (usuario_id, bio, specialties, experience_years, status) VALUES
+(3,'Entrenador profesional','pesas,nutricion',5,'aprobada');
 
-INSERT INTO reminders (title, time_label) VALUES
-('Actualizar peso semanal de Ana', 'Hace 1h'),
-('Revisar progreso mensual de Luis', 'Hoy 18:00'),
-('Enviar resumen nutricional', 'Manana');
+-- 📊 Progreso
+INSERT INTO user_progress_logs (usuario_id, weight_kg, notes) VALUES
+(1,84.5,'Inicio'),
+(1,83.2,'Progreso'),
+(2,60.5,'Inicio');
 
-INSERT INTO mood (label, value) VALUES
-('En foco', 62),
-('Neutros', 23),
-('Fuera de ritmo', 15);
+-- 🔐 Sesiones
+INSERT INTO user_sessions (usuario_id, token_hash, user_agent, ip_address, expires_at) VALUES
+(1,SHA2('token1',256),'Chrome','127.0.0.1',NOW()+INTERVAL 1 DAY);
+
+-- 🔁 Reset password
+INSERT INTO password_reset_tokens (usuario_id, token_hash, expires_at) VALUES
+(1,SHA2('reset1',256),NOW()+INTERVAL 1 HOUR);
+
+-- 👥 Clients
+INSERT INTO clients (name, goal, status) VALUES
+('Ana Torres','Bajar grasa','activo'),
+('Luis Perez','Ganar musculo','riesgo');
+
+-- 📅 Sessions
+INSERT INTO sessions (client_id, topic) VALUES
+(1,'Plan inicial'),
+(2,'Seguimiento');
+
+-- 🎯 Goals
+INSERT INTO goals (label,value) VALUES
+('Activos',10);
+
+-- 📢 Campaigns
+INSERT INTO campaigns (title) VALUES
+('Fitness Pro');
+
+-- ⏰ Reminders
+INSERT INTO reminders (title) VALUES
+('Actualizar progreso');
+
+-- 😊 Mood
+INSERT INTO mood (label,value) VALUES
+('En foco',70);
