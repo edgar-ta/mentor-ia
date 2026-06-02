@@ -37,4 +37,5 @@ npm run dev            # puerto 5173, proxy a 4000
 cd backend
 npm run test:search
 ```
+
 - El documento breve y la tabla de pruebas quedaron en `docs/practica-busqueda-api.md`.
