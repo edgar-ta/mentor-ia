@@ -6,7 +6,7 @@ Para esta practica se adapto MentorIA como un **catalogo de recursos de mentoria
 
 ## 2. Busqueda simple vs avanzada
 
-La **busqueda simple** usa una sola caja de texto (`q`) para localizar coincidencias por palabras clave en titulo, descripcion y tags. En MentorIA esta modalidad calcula un puntaje simple de relevancia: una coincidencia en titulo vale mas que una coincidencia en descripcion o tags, por lo que los resultados mas cercanos suben al inicio.
+La **busqueda simple** usa una sola caja de texto (`q`) para localizar coincidencias por palabras clave en titulo, descripcion y tags. En MentorIA esta modalidad calcula un puntaje simple de relevancia: una coincidencia en titulo **vale** mas que una coincidencia en descripcion o tags, por lo que los resultados mas cercanos suben al inicio.
 
 La **busqueda avanzada** parte de la misma consulta de texto pero agrega filtros que reducen el conjunto de resultados: categoria, rango de precio, rango de fechas, tags y ordenamiento. En este proyecto la regla es: si solo viaja `q`, el comportamiento es simple; si ademas viajan filtros, la respuesta se marca como busqueda avanzada.
 
