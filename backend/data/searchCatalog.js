@@ -205,7 +205,12 @@ const searchCatalog = [
     steps: [
       'Semana 1-3: crear adherencia y tecnica.',
       'Semana 4-7: progresar cargas y pasos diarios.',
-      'Semana 8-10: ajustar calorias y sostener intensidad.'
+      'Semana 8-10: ajustar calorias y sostener intensidad.',
+
+       // Se agregaron semanas extra para mejorar la consolidación de resultados. 
+
+       'Semana 11-12: optimizar la recuperacion y mantener la progresion de cargas.',
+       'Semana 13-14: evaluar resultados finales y establecer nuevos objetivos.'
     ],
     url: '/buscar/recurso/programa-recomp-corporal'
   }
