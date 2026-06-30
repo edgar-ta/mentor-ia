@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { pool } from './db.js';
 import { generateOpaqueToken, hashPassword, sha256, verifyPassword } from './security.js';
 import { clearSessionCookie, getClientIp, getSessionToken, setSessionCookie } from './http.js';
+import { logger } from './logger.js';
 
 dotenv.config();
 
@@ -34,7 +35,7 @@ export async function ensureBootstrapAdmin() {
     { usuarioId: result.insertId }
   );
 
-  console.log(`Admin bootstrap creado: ${email}`);
+  logger.info({ email }, 'Admin bootstrap creado');
 }
 
 function normalizeObjective(value) {

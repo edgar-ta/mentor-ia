@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { logger } from './logger.js';
 
 dotenv.config();
 
@@ -6,10 +7,7 @@ export async function sendPasswordResetEmail({ email, nombre, resetUrl }) {
   const mode = process.env.MAIL_MODE || 'console';
 
   if (mode === 'console') {
-    console.log('=== PASSWORD RESET EMAIL ===');
-    console.log(`Para: ${nombre} <${email}>`);
-    console.log(`Enlace: ${resetUrl}`);
-    console.log('============================');
+    logger.info({ email, nombre, mode, previewAvailable: true }, 'Password reset email generado');
     return { delivered: true, previewUrl: resetUrl };
   }
 

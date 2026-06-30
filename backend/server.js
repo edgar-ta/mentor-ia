@@ -1,6 +1,7 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import helmet from 'helmet';
 import {
   addProgressLog,
   assignCoachToUser,
@@ -30,6 +31,8 @@ import {
   updateUserProfile
 } from './lib/auth.js';
 import { pool } from './lib/db.js';
+import { errorHandler, handleRouteError, notFoundHandler } from './lib/errorHandler.js';
+import { logger, logError } from './lib/logger.js';
 import { sendPasswordResetEmail } from './lib/mailer.js';
 import { requireLogin, requireRole } from './lib/middleware.js';
 import { isStrongPassword } from './lib/security.js';
@@ -38,11 +41,57 @@ import { getResourceBySlug, getSearchMeta, searchResources } from './lib/searchS
 dotenv.config();
 
 const app = express();
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
+const isProduction = process.env.NODE_ENV === 'production';
+const configuredFrontendOrigins = (process.env.FRONTEND_ORIGIN || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const developmentOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173'
+];
+const allowedOrigins = isProduction
+  ? configuredFrontendOrigins
+  : [...new Set([...configuredFrontendOrigins, ...developmentOrigins])];
+const securityDirectives = {
+  defaultSrc: ["'self'"],
+  baseUri: ["'self'"],
+  connectSrc: ["'self'", ...allowedOrigins],
+  fontSrc: ["'self'", 'https:', 'data:'],
+  formAction: ["'self'"],
+  frameAncestors: ["'none'"],
+  imgSrc: ["'self'", 'data:', 'https:'],
+  objectSrc: ["'none'"],
+  scriptSrc: ["'self'"],
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  upgradeInsecureRequests: isProduction ? [] : null
+};
 
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: securityDirectives
+    },
+    crossOriginEmbedderPolicy: false,
+    frameguard: {
+      action: 'deny'
+    },
+    hsts: isProduction
+      ? {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true
+        }
+      : false,
+    noSniff: true,
+    referrerPolicy: {
+      policy: 'no-referrer'
+    }
+  })
+);
 app.use(
   cors({
     origin(origin, callback) {
@@ -51,9 +100,15 @@ app.use(
         return;
       }
 
-      callback(new Error('Origen no permitido por CORS'));
+      const corsError = new Error('Origen no permitido por CORS');
+      corsError.statusCode = 403;
+      callback(corsError);
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204,
+    maxAge: isProduction ? 86400 : 600
   })
 );
 app.use(express.json());
@@ -88,8 +143,11 @@ app.post('/api/auth/register', async (req, res) => {
       redirectTo: '/app/onboarding'
     });
   } catch (error) {
-    console.error('Error /api/auth/register', error);
-    res.status(500).json({ message: 'No se pudo crear la cuenta.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo crear la cuenta.',
+      logMessage: 'Error /api/auth/register'
+    });
   }
 });
 
@@ -112,8 +170,11 @@ app.post('/api/auth/login', async (req, res) => {
       redirectTo: getRedirectByUser(user)
     });
   } catch (error) {
-    console.error('Error /api/auth/login', error);
-    res.status(500).json({ message: 'No se pudo iniciar sesion.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo iniciar sesion.',
+      logMessage: 'Error /api/auth/login'
+    });
   }
 });
 
@@ -129,8 +190,11 @@ app.get('/api/auth/me', async (req, res) => {
       session: current.session
     });
   } catch (error) {
-    console.error('Error /api/auth/me', error);
-    res.status(500).json({ message: 'No se pudo validar la sesion.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo validar la sesion.',
+      logMessage: 'Error /api/auth/me'
+    });
   }
 });
 
@@ -139,8 +203,11 @@ app.patch('/api/auth/profile', requireLogin, async (req, res) => {
     const updated = await updateUserProfile(req.user.id, req.body || {});
     res.json({ user: sanitizeUser(updated) });
   } catch (error) {
-    console.error('Error /api/auth/profile', error);
-    res.status(400).json({ message: error.message || 'No se pudo actualizar el perfil.' });
+    handleRouteError(req, res, error, {
+      statusCode: 400,
+      message: 'No se pudo actualizar el perfil.',
+      logMessage: 'Error /api/auth/profile'
+    });
   }
 });
 
@@ -149,8 +216,11 @@ app.post('/api/auth/onboarding', requireLogin, requireRole('usuario'), async (re
     const updated = await completeUserOnboarding(req.user.id, req.body || {});
     res.json({ user: sanitizeUser(updated), redirectTo: '/app' });
   } catch (error) {
-    console.error('Error /api/auth/onboarding', error);
-    res.status(400).json({ message: error.message || 'No se pudo completar el onboarding.' });
+    handleRouteError(req, res, error, {
+      statusCode: 400,
+      message: 'No se pudo completar el onboarding.',
+      logMessage: 'Error /api/auth/onboarding'
+    });
   }
 });
 
@@ -172,8 +242,11 @@ app.post('/api/auth/change-password', requireLogin, async (req, res) => {
     await revokeCurrentSession(req, res);
     res.json({ message: 'Contrasena actualizada. Debes iniciar sesion nuevamente.' });
   } catch (error) {
-    console.error('Error /api/auth/change-password', error);
-    res.status(400).json({ message: error.message || 'No se pudo cambiar la contrasena.' });
+    handleRouteError(req, res, error, {
+      statusCode: 400,
+      message: 'No se pudo cambiar la contrasena.',
+      logMessage: 'Error /api/auth/change-password'
+    });
   }
 });
 
@@ -182,8 +255,11 @@ app.get('/api/auth/sessions', requireLogin, async (req, res) => {
     const sessions = await listActiveSessions(req.user.id);
     res.json({ sessions, currentSessionId: req.sessionInfo.id });
   } catch (error) {
-    console.error('Error /api/auth/sessions', error);
-    res.status(500).json({ message: 'No se pudieron obtener las sesiones activas.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudieron obtener las sesiones activas.',
+      logMessage: 'Error /api/auth/sessions'
+    });
   }
 });
 
@@ -192,8 +268,11 @@ app.post('/api/auth/logout', requireLogin, async (req, res) => {
     await revokeCurrentSession(req, res);
     res.json({ message: 'Sesion cerrada correctamente.' });
   } catch (error) {
-    console.error('Error /api/auth/logout', error);
-    res.status(500).json({ message: 'No se pudo cerrar la sesion.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo cerrar la sesion.',
+      logMessage: 'Error /api/auth/logout'
+    });
   }
 });
 
@@ -203,8 +282,11 @@ app.post('/api/auth/logout-all', requireLogin, async (req, res) => {
     await revokeCurrentSession(req, res);
     res.json({ message: 'Se cerraron todas las sesiones activas.' });
   } catch (error) {
-    console.error('Error /api/auth/logout-all', error);
-    res.status(500).json({ message: 'No se pudieron cerrar las sesiones.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudieron cerrar las sesiones.',
+      logMessage: 'Error /api/auth/logout-all'
+    });
   }
 });
 
@@ -236,8 +318,11 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       previewUrl: delivery.previewUrl || null
     });
   } catch (error) {
-    console.error('Error /api/auth/forgot-password', error);
-    res.status(500).json({ message: 'No se pudo procesar la recuperacion.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo procesar la recuperacion.',
+      logMessage: 'Error /api/auth/forgot-password'
+    });
   }
 });
 
@@ -259,8 +344,11 @@ app.post('/api/auth/reset-password', async (req, res) => {
     res.json({ message: 'La contrasena se actualizo correctamente. Inicia sesion de nuevo.' });
   } catch (error) {
     const statusCode = error.message?.includes('invalido') ? 400 : 500;
-    console.error('Error /api/auth/reset-password', error);
-    res.status(statusCode).json({ message: error.message || 'No se pudo restablecer la contrasena.' });
+    handleRouteError(req, res, error, {
+      statusCode,
+      message: 'No se pudo restablecer la contrasena.',
+      logMessage: 'Error /api/auth/reset-password'
+    });
   }
 });
 
@@ -275,8 +363,11 @@ app.post('/api/coach/apply', requireLogin, requireRole('usuario'), async (req, r
     await submitCoachApplication(req.user.id, { bio, specialties, experienceYears });
     res.json({ message: 'Solicitud enviada. Un administrador la revisara.' });
   } catch (error) {
-    console.error('Error /api/coach/apply', error);
-    res.status(500).json({ message: 'No se pudo enviar la solicitud.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo enviar la solicitud.',
+      logMessage: 'Error /api/coach/apply'
+    });
   }
 });
 
@@ -285,8 +376,11 @@ app.get('/api/coaches', requireLogin, async (_req, res) => {
     const coaches = await listApprovedCoaches();
     res.json(coaches);
   } catch (error) {
-    console.error('Error /api/coaches', error);
-    res.status(500).json({ message: 'No se pudieron cargar los coaches.' });
+    handleRouteError(_req, res, error, {
+      statusCode: 500,
+      message: 'No se pudieron cargar los coaches.',
+      logMessage: 'Error /api/coaches'
+    });
   }
 });
 
@@ -301,8 +395,11 @@ app.post('/api/users/me/coach-assignment', requireLogin, requireRole('usuario'),
     const updated = await assignCoachToUser(req.user.id, Number(coachId));
     res.json({ user: sanitizeUser(updated) });
   } catch (error) {
-    console.error('Error /api/users/me/coach-assignment', error);
-    res.status(400).json({ message: error.message || 'No se pudo asignar el coach.' });
+    handleRouteError(req, res, error, {
+      statusCode: 400,
+      message: 'No se pudo asignar el coach.',
+      logMessage: 'Error /api/users/me/coach-assignment'
+    });
   }
 });
 
@@ -311,8 +408,11 @@ app.delete('/api/users/me/coach-assignment', requireLogin, requireRole('usuario'
     const updated = await unassignCoachFromUser(req.user.id);
     res.json({ user: sanitizeUser(updated) });
   } catch (error) {
-    console.error('Error DELETE /api/users/me/coach-assignment', error);
-    res.status(500).json({ message: 'No se pudo quitar el coach.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo quitar el coach.',
+      logMessage: 'Error DELETE /api/users/me/coach-assignment'
+    });
   }
 });
 
@@ -329,8 +429,11 @@ app.post('/api/users/me/progress', requireLogin, requireRole('usuario'), async (
     const user = await buildUserSnapshotById(req.user.id);
     res.json({ history, user: sanitizeUser(user) });
   } catch (error) {
-    console.error('Error /api/users/me/progress', error);
-    res.status(500).json({ message: 'No se pudo guardar el progreso.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo guardar el progreso.',
+      logMessage: 'Error /api/users/me/progress'
+    });
   }
 });
 
@@ -339,8 +442,11 @@ app.get('/api/users/me/progress', requireLogin, requireRole('usuario'), async (r
     const history = await getProgressHistory(req.user.id);
     res.json(history);
   } catch (error) {
-    console.error('Error GET /api/users/me/progress', error);
-    res.status(500).json({ message: 'No se pudo obtener el progreso.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo obtener el progreso.',
+      logMessage: 'Error GET /api/users/me/progress'
+    });
   }
 });
 
@@ -349,8 +455,11 @@ app.get('/api/coach/clients', requireLogin, requireRole('coach'), async (req, re
     const clients = await listCoachClients(req.user.id);
     res.json(clients);
   } catch (error) {
-    console.error('Error /api/coach/clients', error);
-    res.status(500).json({ message: 'No se pudo obtener el seguimiento de clientes.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo obtener el seguimiento de clientes.',
+      logMessage: 'Error /api/coach/clients'
+    });
   }
 });
 
@@ -359,8 +468,11 @@ app.get('/api/admin/coach-applications', requireLogin, requireRole('administrado
     const applications = await listCoachApplications();
     res.json(applications);
   } catch (error) {
-    console.error('Error /api/admin/coach-applications', error);
-    res.status(500).json({ message: 'No se pudieron obtener las solicitudes.' });
+    handleRouteError(_req, res, error, {
+      statusCode: 500,
+      message: 'No se pudieron obtener las solicitudes.',
+      logMessage: 'Error /api/admin/coach-applications'
+    });
   }
 });
 
@@ -376,8 +488,11 @@ app.post('/api/admin/coach-applications/:id/review', requireLogin, requireRole('
     const applications = await listCoachApplications();
     res.json({ applications });
   } catch (error) {
-    console.error('Error /api/admin/coach-applications/:id/review', error);
-    res.status(400).json({ message: error.message || 'No se pudo revisar la solicitud.' });
+    handleRouteError(req, res, error, {
+      statusCode: 400,
+      message: 'No se pudo revisar la solicitud.',
+      logMessage: 'Error /api/admin/coach-applications/:id/review'
+    });
   }
 });
 
@@ -468,8 +583,11 @@ app.get('/api/metrics', requireLogin, async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error /api/metrics', err);
-    res.status(500).json({ message: 'Error obteniendo metricas' });
+    handleRouteError(req, res, err, {
+      statusCode: 500,
+      message: 'No se pudieron obtener las metricas.',
+      logMessage: 'Error /api/metrics'
+    });
   }
 });
 
@@ -481,9 +599,12 @@ app.get('/api/search', async (req, res) => {
   try {
     res.json(searchResources(req.query));
   } catch (err) {
-    console.error('Error /api/search', err);
     const statusCode = err.message?.includes('debe') || err.message?.includes('no puede') ? 400 : 500;
-    res.status(statusCode).json({ message: err.message || 'No se pudo procesar la busqueda.' });
+    handleRouteError(req, res, err, {
+      statusCode,
+      message: 'No se pudo procesar la busqueda.',
+      logMessage: 'Error /api/search'
+    });
   }
 });
 
@@ -507,8 +628,11 @@ app.get('/api/clients', requireLogin, requireRole('administrador'), async (_req,
     }));
     res.json(mapped);
   } catch (err) {
-    console.error('Error /api/clients', err);
-    res.status(500).json({ message: 'Error obteniendo clientes' });
+    handleRouteError(_req, res, err, {
+      statusCode: 500,
+      message: 'No se pudieron obtener los clientes.',
+      logMessage: 'Error /api/clients'
+    });
   }
 });
 
@@ -520,8 +644,11 @@ app.get('/api/sessions', requireLogin, async (_req, res) => {
       ORDER BY s.date, s.time`);
     res.json(rows);
   } catch (err) {
-    console.error('Error /api/sessions', err);
-    res.status(500).json({ message: 'Error obteniendo sesiones' });
+    handleRouteError(_req, res, err, {
+      statusCode: 500,
+      message: 'No se pudieron obtener las sesiones.',
+      logMessage: 'Error /api/sessions'
+    });
   }
 });
 
@@ -543,8 +670,11 @@ app.get('/api/sessions/:id', requireLogin, async (req, res) => {
 
     res.json(rows[0]);
   } catch (err) {
-    console.error('Error /api/sessions/:id', err);
-    res.status(500).json({ message: 'No se pudo obtener el detalle de la sesion.' });
+    handleRouteError(req, res, err, {
+      statusCode: 500,
+      message: 'No se pudo obtener el detalle de la sesion.',
+      logMessage: 'Error /api/sessions/:id'
+    });
   }
 });
 
@@ -573,8 +703,11 @@ app.post('/api/sessions', requireLogin, async (req, res) => {
 
     res.status(201).json(rows[0]);
   } catch (err) {
-    console.error('Error POST /api/sessions', err);
-    res.status(500).json({ message: 'No se pudo crear la sesion.' });
+    handleRouteError(req, res, err, {
+      statusCode: 500,
+      message: 'No se pudo crear la sesion.',
+      logMessage: 'Error POST /api/sessions'
+    });
   }
 });
 
@@ -599,8 +732,11 @@ app.get('/api/sessions-export', requireLogin, async (_req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="sesiones.csv"');
     res.send([header, ...lines].join('\n'));
   } catch (err) {
-    console.error('Error /api/sessions-export', err);
-    res.status(500).json({ message: 'No se pudo exportar la agenda.' });
+    handleRouteError(_req, res, err, {
+      statusCode: 500,
+      message: 'No se pudo exportar la agenda.',
+      logMessage: 'Error /api/sessions-export'
+    });
   }
 });
 
@@ -616,10 +752,13 @@ app.post('/api/chat', requireLogin, async (req, res) => {
       : `Tu objetivo actual es ${formatObjective(objective)}. Aun no tienes coach asignado, pero puedes elegir uno desde la seccion Coaches.`;
     res.json({ reply, echo: message });
   } catch (err) {
-    console.error('Error /api/chat', err);
+    logError(err, 'Error /api/chat', req, { body: req.body });
     res.status(500).json({ reply: 'No pude consultar tu perfil ahora.' });
   }
 });
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 function getRedirectByUser(user) {
   if (user.rol === 'administrador') return '/app/admin/coaches';
@@ -645,9 +784,9 @@ function statusLabel(status) {
 const port = process.env.PORT || 4000;
 ensureBootstrapAdmin()
   .then(() => {
-    app.listen(port, () => console.log(`Backend listo en http://localhost:${port}`));
+    app.listen(port, () => logger.info({ port }, `Backend listo en http://localhost:${port}`));
   })
   .catch((error) => {
-    console.error('No se pudo iniciar el backend', error);
+    logError(error, 'No se pudo iniciar el backend');
     process.exit(1);
   });

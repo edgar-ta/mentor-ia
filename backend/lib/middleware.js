@@ -1,5 +1,6 @@
 import { clearSessionCookie } from './http.js';
 import { getCurrentSession } from './auth.js';
+import { handleRouteError } from './errorHandler.js';
 
 export async function requireLogin(req, res, next) {
   try {
@@ -18,8 +19,11 @@ export async function requireLogin(req, res, next) {
     req.sessionInfo = current.session;
     next();
   } catch (error) {
-    console.error('Error en requireLogin', error);
-    res.status(500).json({ message: 'No se pudo validar la sesion.' });
+    handleRouteError(req, res, error, {
+      statusCode: 500,
+      message: 'No se pudo validar la sesion.',
+      logMessage: 'Error en requireLogin'
+    });
   }
 }
 
