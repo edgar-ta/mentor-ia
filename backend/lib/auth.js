@@ -1,11 +1,9 @@
-import dotenv from 'dotenv';
 import { pool } from './db.js';
-import { generateOpaqueToken, hashPassword, sha256, verifyPassword } from './security.js';
+import { getRequiredEnv } from './env.js';
+import { createSessionJwt, generateOpaqueToken, hashPassword, sha256, verifyPassword, verifySessionJwt } from './security.js';
 import { clearSessionCookie, getClientIp, getSessionToken, setSessionCookie } from './http.js';
 
-dotenv.config();
-
-const SESSION_TTL_SECONDS = Number.parseInt(process.env.SESSION_TTL_SECONDS || '43200', 10);
+const SESSION_TTL_SECONDS = Number.parseInt(process.env.JWT_TTL_SECONDS || process.env.SESSION_TTL_SECONDS || '900', 10);
 const RESET_TTL_MINUTES = Number.parseInt(process.env.RESET_TOKEN_TTL_MINUTES || '30', 10);
 const MAX_ACTIVE_SESSIONS = Number.parseInt(process.env.MAX_ACTIVE_SESSIONS || '3', 10);
 const PASSWORD_CHANGE_INTERVAL_DAYS = 30;
@@ -17,9 +15,9 @@ export async function ensureBootstrapAdmin() {
 
   if (rows.length > 0) return;
 
-  const nombre = process.env.BOOTSTRAP_ADMIN_NAME || 'Administrador MentorIA';
-  const email = process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@mentoria.local';
-  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'AdminMentoria2026!';
+  const nombre = getRequiredEnv('BOOTSTRAP_ADMIN_NAME');
+  const email = getRequiredEnv('BOOTSTRAP_ADMIN_EMAIL');
+  const password = getRequiredEnv('BOOTSTRAP_ADMIN_PASSWORD');
   const passwordHash = await hashPassword(password);
 
   const [result] = await pool.query(
@@ -216,13 +214,19 @@ export async function authenticateUser(email, password) {
   return buildUserSnapshotById(user.id);
 }
 
-export async function createSessionForUser(userId, req, res) {
-  const token = generateOpaqueToken();
-  const tokenHash = sha256(token);
+export async function createSessionForUser(user, req, res) {
+  const userId = typeof user === 'object' ? user.id : user;
+  const role = typeof user === 'object' ? user.rol : (await buildUserSnapshotById(userId))?.rol;
+  if (!userId || !role) {
+    throw new Error('No se pudo crear la sesion.');
+  }
+
+  const jti = generateOpaqueToken(32);
+  const tokenHash = sha256(jti);
   const ipAddress = getClientIp(req);
   const userAgent = req.headers['user-agent'] || 'unknown';
 
-  await pool.query(
+  const [result] = await pool.query(
     `INSERT INTO user_sessions (usuario_id, token_hash, user_agent, ip_address, expires_at)
      VALUES (:usuarioId, :tokenHash, :userAgent, :ipAddress, DATE_ADD(NOW(), INTERVAL :ttl SECOND))`,
     { usuarioId: userId, tokenHash, userAgent, ipAddress, ttl: SESSION_TTL_SECONDS }
@@ -245,15 +249,29 @@ export async function createSessionForUser(userId, req, res) {
     { usuarioId: userId, offsetValue: MAX_ACTIVE_SESSIONS }
   );
 
-  setSessionCookie(res, token);
-  return token;
+  const jwt = createSessionJwt({
+    userId,
+    role,
+    sessionId: result.insertId,
+    jti
+  });
+
+  setSessionCookie(res, jwt);
+  return jwt;
 }
 
 export async function getCurrentSession(req) {
   const token = getSessionToken(req);
   if (!token) return null;
 
-  const tokenHash = sha256(token);
+  let claims;
+  try {
+    claims = verifySessionJwt(token);
+  } catch (_error) {
+    return null;
+  }
+
+  const tokenHash = sha256(claims.jti);
   const [rows] = await pool.query(
     `SELECT
        s.id AS session_id,
@@ -264,11 +282,13 @@ export async function getCurrentSession(req) {
        u.id AS usuario_id
      FROM user_sessions s
      JOIN usuarios u ON u.id = s.usuario_id
-     WHERE s.token_hash = :tokenHash
+     WHERE s.id = :sessionId
+       AND s.usuario_id = :usuarioId
+       AND s.token_hash = :tokenHash
        AND s.revoked_at IS NULL
        AND s.expires_at > NOW()
      LIMIT 1`,
-    { tokenHash }
+    { sessionId: claims.sessionId, usuarioId: claims.userId, tokenHash }
   );
 
   const row = rows[0];
@@ -300,10 +320,20 @@ export async function getCurrentSession(req) {
 export async function revokeCurrentSession(req, res) {
   const token = getSessionToken(req);
   if (token) {
-    await pool.query(
-      `UPDATE user_sessions SET revoked_at = NOW() WHERE token_hash = :tokenHash AND revoked_at IS NULL`,
-      { tokenHash: sha256(token) }
-    );
+    try {
+      const claims = verifySessionJwt(token, { ignoreExpiration: true });
+      await pool.query(
+        `UPDATE user_sessions
+         SET revoked_at = NOW()
+         WHERE id = :sessionId
+           AND usuario_id = :usuarioId
+           AND token_hash = :tokenHash
+           AND revoked_at IS NULL`,
+        { sessionId: claims.sessionId, usuarioId: claims.userId, tokenHash: sha256(claims.jti) }
+      );
+    } catch (_error) {
+      // Invalid tokens are cleared client-side even if no server row can be revoked.
+    }
   }
 
   clearSessionCookie(res);

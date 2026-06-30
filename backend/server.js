@@ -1,6 +1,6 @@
 import cors from 'cors';
-import dotenv from 'dotenv';
 import express from 'express';
+import './lib/env.js';
 import {
   addProgressLog,
   assignCoachToUser,
@@ -32,10 +32,10 @@ import {
 import { pool } from './lib/db.js';
 import { sendPasswordResetEmail } from './lib/mailer.js';
 import { requireLogin, requireRole } from './lib/middleware.js';
+import { schemas } from './lib/schemas.js';
 import { isStrongPassword } from './lib/security.js';
 import { getResourceBySlug, getSearchMeta, searchResources } from './lib/searchService.js';
-
-dotenv.config();
+import { validateRequest } from './lib/validation.js';
 
 const app = express();
 const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
@@ -62,13 +62,8 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'mentoria-backend' });
 });
 
-app.post('/api/auth/register', async (req, res) => {
-  const { nombre, email, password } = req.body || {};
-
-  if (!nombre?.trim() || !email?.trim() || !password) {
-    return res.status(400).json({ message: 'Nombre, email y password son obligatorios.' });
-  }
-
+app.post('/api/auth/register', validateRequest({ body: schemas.authRegisterBody }), async (req, res) => {
+  const { nombre, email, password } = req.validated.body;
   if (!isStrongPassword(password)) {
     return res.status(400).json({
       message: 'La contrasena debe tener minimo 10 caracteres, mayuscula, minuscula y numero.'
@@ -82,7 +77,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const user = await createUser({ nombre, email, password, rol: 'usuario' });
-    await createSessionForUser(user.id, req, res);
+    await createSessionForUser(user, req, res);
     res.status(201).json({
       user: sanitizeUser(user),
       redirectTo: '/app/onboarding'
@@ -93,20 +88,15 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body || {};
-
-  if (!email?.trim() || !password) {
-    return res.status(400).json({ message: 'Email y password son obligatorios.' });
-  }
-
+app.post('/api/auth/login', validateRequest({ body: schemas.authLoginBody }), async (req, res) => {
+  const { email, password } = req.validated.body;
   try {
     const user = await authenticateUser(email, password);
     if (!user) {
       return res.status(401).json({ message: 'Credenciales invalidas.' });
     }
 
-    await createSessionForUser(user.id, req, res);
+    await createSessionForUser(user, req, res);
     res.json({
       user: sanitizeUser(user),
       redirectTo: getRedirectByUser(user)
@@ -134,9 +124,9 @@ app.get('/api/auth/me', async (req, res) => {
   }
 });
 
-app.patch('/api/auth/profile', requireLogin, async (req, res) => {
+app.patch('/api/auth/profile', requireLogin, validateRequest({ body: schemas.authProfileBody }), async (req, res) => {
   try {
-    const updated = await updateUserProfile(req.user.id, req.body || {});
+    const updated = await updateUserProfile(req.user.id, req.validated.body);
     res.json({ user: sanitizeUser(updated) });
   } catch (error) {
     console.error('Error /api/auth/profile', error);
@@ -144,9 +134,9 @@ app.patch('/api/auth/profile', requireLogin, async (req, res) => {
   }
 });
 
-app.post('/api/auth/onboarding', requireLogin, requireRole('usuario'), async (req, res) => {
+app.post('/api/auth/onboarding', requireLogin, requireRole('usuario'), validateRequest({ body: schemas.onboardingBody }), async (req, res) => {
   try {
-    const updated = await completeUserOnboarding(req.user.id, req.body || {});
+    const updated = await completeUserOnboarding(req.user.id, req.validated.body);
     res.json({ user: sanitizeUser(updated), redirectTo: '/app' });
   } catch (error) {
     console.error('Error /api/auth/onboarding', error);
@@ -154,13 +144,8 @@ app.post('/api/auth/onboarding', requireLogin, requireRole('usuario'), async (re
   }
 });
 
-app.post('/api/auth/change-password', requireLogin, async (req, res) => {
-  const { currentPassword, newPassword } = req.body || {};
-
-  if (!currentPassword || !newPassword) {
-    return res.status(400).json({ message: 'Debes indicar la contrasena actual y la nueva.' });
-  }
-
+app.post('/api/auth/change-password', requireLogin, validateRequest({ body: schemas.changePasswordBody }), async (req, res) => {
+  const { currentPassword, newPassword } = req.validated.body;
   if (!isStrongPassword(newPassword)) {
     return res.status(400).json({
       message: 'La nueva contrasena debe tener minimo 10 caracteres, mayuscula, minuscula y numero.'
@@ -208,13 +193,8 @@ app.post('/api/auth/logout-all', requireLogin, async (req, res) => {
   }
 });
 
-app.post('/api/auth/forgot-password', async (req, res) => {
-  const { email } = req.body || {};
-
-  if (!email?.trim()) {
-    return res.status(400).json({ message: 'Debes indicar el correo de la cuenta.' });
-  }
-
+app.post('/api/auth/forgot-password', validateRequest({ body: schemas.forgotPasswordBody }), async (req, res) => {
+  const { email } = req.validated.body;
   try {
     const user = await findUserByEmail(email);
     if (!user) {
@@ -241,13 +221,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
-app.post('/api/auth/reset-password', async (req, res) => {
-  const { token, password } = req.body || {};
-
-  if (!token || !password) {
-    return res.status(400).json({ message: 'Token y nueva contrasena son obligatorios.' });
-  }
-
+app.post('/api/auth/reset-password', validateRequest({ body: schemas.resetPasswordBody }), async (req, res) => {
+  const { token, password } = req.validated.body;
   if (!isStrongPassword(password)) {
     return res.status(400).json({
       message: 'La contrasena debe tener minimo 10 caracteres, mayuscula, minuscula y numero.'
@@ -264,13 +239,8 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
-app.post('/api/coach/apply', requireLogin, requireRole('usuario'), async (req, res) => {
-  const { bio, specialties, experienceYears } = req.body || {};
-
-  if (!bio?.trim() || !specialties?.trim()) {
-    return res.status(400).json({ message: 'Bio y especialidades son obligatorias.' });
-  }
-
+app.post('/api/coach/apply', requireLogin, requireRole('usuario'), validateRequest({ body: schemas.coachApplicationBody }), async (req, res) => {
+  const { bio, specialties, experienceYears } = req.validated.body;
   try {
     await submitCoachApplication(req.user.id, { bio, specialties, experienceYears });
     res.json({ message: 'Solicitud enviada. Un administrador la revisara.' });
@@ -290,15 +260,10 @@ app.get('/api/coaches', requireLogin, async (_req, res) => {
   }
 });
 
-app.post('/api/users/me/coach-assignment', requireLogin, requireRole('usuario'), async (req, res) => {
-  const { coachId } = req.body || {};
-
-  if (!coachId) {
-    return res.status(400).json({ message: 'Debes seleccionar un coach.' });
-  }
-
+app.post('/api/users/me/coach-assignment', requireLogin, requireRole('usuario'), validateRequest({ body: schemas.coachAssignmentBody }), async (req, res) => {
+  const { coachId } = req.validated.body;
   try {
-    const updated = await assignCoachToUser(req.user.id, Number(coachId));
+    const updated = await assignCoachToUser(req.user.id, coachId);
     res.json({ user: sanitizeUser(updated) });
   } catch (error) {
     console.error('Error /api/users/me/coach-assignment', error);
@@ -316,13 +281,8 @@ app.delete('/api/users/me/coach-assignment', requireLogin, requireRole('usuario'
   }
 });
 
-app.post('/api/users/me/progress', requireLogin, requireRole('usuario'), async (req, res) => {
-  const { weightKg, notes } = req.body || {};
-
-  if (!weightKg) {
-    return res.status(400).json({ message: 'Debes indicar tu peso actual.' });
-  }
-
+app.post('/api/users/me/progress', requireLogin, requireRole('usuario'), validateRequest({ body: schemas.progressBody }), async (req, res) => {
+  const { weightKg, notes } = req.validated.body;
   try {
     await addProgressLog(req.user.id, { weightKg, notes });
     const history = await getProgressHistory(req.user.id);
@@ -364,15 +324,11 @@ app.get('/api/admin/coach-applications', requireLogin, requireRole('administrado
   }
 });
 
-app.post('/api/admin/coach-applications/:id/review', requireLogin, requireRole('administrador'), async (req, res) => {
-  const { decision, rejectionReason } = req.body || {};
-
-  if (!['aprobar', 'rechazar'].includes(decision)) {
-    return res.status(400).json({ message: 'Decision invalida.' });
-  }
-
+app.post('/api/admin/coach-applications/:id/review', requireLogin, requireRole('administrador'), validateRequest({ params: schemas.idParams, body: schemas.reviewCoachApplicationBody }), async (req, res) => {
+  const { id } = req.validated.params;
+  const { decision, rejectionReason } = req.validated.body;
   try {
-    await reviewCoachApplication(Number(req.params.id), req.user.id, decision, rejectionReason || null);
+    await reviewCoachApplication(id, req.user.id, decision, rejectionReason || null);
     const applications = await listCoachApplications();
     res.json({ applications });
   } catch (error) {
@@ -381,15 +337,15 @@ app.post('/api/admin/coach-applications/:id/review', requireLogin, requireRole('
   }
 });
 
-app.post('/api/tools/calculate-calories', requireLogin, async (req, res) => {
-  const { gender, weightKg, heightCm, age, activityLevel, objective } = req.body || {};
+app.post('/api/tools/calculate-calories', requireLogin, validateRequest({ body: schemas.calculateCaloriesBody }), async (req, res) => {
+  const { gender, weightKg, currentWeightKg, heightCm, age, activityLevel, objective, objetivo } = req.validated.body;
   const calories = calculateDailyCalories({
     gender,
-    weightKg,
+    weightKg: weightKg || currentWeightKg,
     heightCm,
     age,
     activityLevel,
-    objective
+    objective: objective || objetivo
   });
   res.json({ calories });
 });
@@ -477,9 +433,9 @@ app.get('/api/search/meta', (_req, res) => {
   res.json(getSearchMeta());
 });
 
-app.get('/api/search', async (req, res) => {
+app.get('/api/search', validateRequest({ query: schemas.searchQuery }), async (req, res) => {
   try {
-    res.json(searchResources(req.query));
+    res.json(searchResources(req.validated.query));
   } catch (err) {
     console.error('Error /api/search', err);
     const statusCode = err.message?.includes('debe') || err.message?.includes('no puede') ? 400 : 500;
@@ -487,8 +443,8 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-app.get('/api/search/resource/:slug', async (req, res) => {
-  const resource = getResourceBySlug(req.params.slug);
+app.get('/api/search/resource/:slug', validateRequest({ params: schemas.slugParams }), async (req, res) => {
+  const resource = getResourceBySlug(req.validated.params.slug);
   if (!resource) {
     return res.status(404).json({ message: 'Recurso no encontrado.' });
   }
@@ -525,7 +481,7 @@ app.get('/api/sessions', requireLogin, async (_req, res) => {
   }
 });
 
-app.get('/api/sessions/:id', requireLogin, async (req, res) => {
+app.get('/api/sessions/:id', requireLogin, validateRequest({ params: schemas.idParams }), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT s.id, c.name AS client, s.topic, s.status, s.location,
@@ -534,7 +490,7 @@ app.get('/api/sessions/:id', requireLogin, async (req, res) => {
        JOIN clients c ON s.client_id = c.id
        WHERE s.id = :id
        LIMIT 1`,
-      { id: Number(req.params.id) }
+      { id: req.validated.params.id }
     );
 
     if (!rows[0]) {
@@ -548,17 +504,13 @@ app.get('/api/sessions/:id', requireLogin, async (req, res) => {
   }
 });
 
-app.post('/api/sessions', requireLogin, async (req, res) => {
-  const { clientId, topic, date, time, location } = req.body || {};
-  if (!clientId || !topic || !date || !time) {
-    return res.status(400).json({ message: 'Cliente, tema, fecha y hora son obligatorios.' });
-  }
-
+app.post('/api/sessions', requireLogin, validateRequest({ body: schemas.sessionCreateBody }), async (req, res) => {
+  const { clientId, topic, date, time, location } = req.validated.body;
   try {
     const [result] = await pool.query(
       `INSERT INTO sessions (client_id, topic, date, time, status, location)
        VALUES (:clientId, :topic, :date, :time, 'programada', :location)`,
-      { clientId: Number(clientId), topic: topic.trim(), date, time, location: location || 'Online' }
+      { clientId, topic, date, time, location: location || 'Online' }
     );
 
     const [rows] = await pool.query(
@@ -604,9 +556,8 @@ app.get('/api/sessions-export', requireLogin, async (_req, res) => {
   }
 });
 
-app.post('/api/chat', requireLogin, async (req, res) => {
-  const { message } = req.body;
-
+app.post('/api/chat', requireLogin, validateRequest({ body: schemas.chatBody }), async (req, res) => {
+  const { message } = req.validated.body;
   try {
     const current = await buildUserSnapshotById(req.user.id);
     const objective = current?.objetivo || current?.profile?.objetivo || 'mantenerme';

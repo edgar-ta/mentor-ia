@@ -1,13 +1,11 @@
-import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
-
-dotenv.config();
+import { getRequiredEnv } from './env.js';
 
 export const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || '',
-  database: process.env.DB_NAME || 'mentoria',
+  host: getRequiredEnv('DB_HOST'),
+  user: getRequiredEnv('DB_USER'),
+  password: getRequiredEnv('DB_PASS'),
+  database: getRequiredEnv('DB_NAME'),
   waitForConnections: true,
   connectionLimit: 10,
   namedPlaceholders: true

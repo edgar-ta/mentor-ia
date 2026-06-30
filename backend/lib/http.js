@@ -1,9 +1,9 @@
-import dotenv from 'dotenv';
-
-dotenv.config();
+import './env.js';
 
 const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME || 'mentoria_sid';
-const SESSION_MAX_AGE_SECONDS = Number.parseInt(process.env.SESSION_TTL_SECONDS || '43200', 10);
+const SESSION_MAX_AGE_SECONDS = Number.parseInt(process.env.JWT_TTL_SECONDS || '900', 10);
+const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || 'Lax';
+const COOKIE_SECURE = process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : true;
 
 export function parseCookies(cookieHeader = '') {
   return cookieHeader.split(';').reduce((acc, pair) => {
@@ -19,11 +19,11 @@ export function setSessionCookie(res, token) {
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    `SameSite=${COOKIE_SAMESITE}`,
     `Max-Age=${SESSION_MAX_AGE_SECONDS}`
   ];
 
-  if (process.env.NODE_ENV === 'production') {
+  if (COOKIE_SECURE) {
     parts.push('Secure');
   }
 
@@ -35,11 +35,11 @@ export function clearSessionCookie(res) {
     `${SESSION_COOKIE}=`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    `SameSite=${COOKIE_SAMESITE}`,
     'Max-Age=0'
   ];
 
-  if (process.env.NODE_ENV === 'production') {
+  if (COOKIE_SECURE) {
     parts.push('Secure');
   }
 

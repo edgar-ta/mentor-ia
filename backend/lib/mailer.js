@@ -1,6 +1,4 @@
-import dotenv from 'dotenv';
-
-dotenv.config();
+import './env.js';
 
 export async function sendPasswordResetEmail({ email, nombre, resetUrl }) {
   const mode = process.env.MAIL_MODE || 'console';

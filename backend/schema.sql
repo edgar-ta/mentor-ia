@@ -80,7 +80,10 @@ CREATE TABLE user_sessions (
   token_hash CHAR(64) NOT NULL UNIQUE,
   user_agent VARCHAR(255) NOT NULL,
   ip_address VARCHAR(80) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_activity_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   expires_at DATETIME NOT NULL,
+  revoked_at DATETIME NULL,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
@@ -133,11 +136,15 @@ CREATE TABLE mood (
 -- ======================
 
 -- 👤 Usuarios
+-- Passwords demo:
+-- juan@example.com / sofia@example.com: UsuarioDemo2026!
+-- coach@example.com: CoachDemo2026!
+-- admin@example.com: AdminDemo2026!
 INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES
-('Juan Lopez', 'juan@example.com', '123456', 'usuario'),
-('Sofia Ramirez', 'sofia@example.com', '123456', 'usuario'),
-('Carlos Coach', 'coach@example.com', '123456', 'coach'),
-('Admin Sistema', 'admin@example.com', '123456', 'administrador');
+('Juan Lopez', 'juan@example.com', '$2b$12$A5JC5JWb195RfaMQXI7sT.vQdSuSWJhQUJcZXTePTPfLpzlsuydj.', 'usuario'),
+('Sofia Ramirez', 'sofia@example.com', '$2b$12$A5JC5JWb195RfaMQXI7sT.vQdSuSWJhQUJcZXTePTPfLpzlsuydj.', 'usuario'),
+('Carlos Coach', 'coach@example.com', '$2b$12$sjRzJ6WDFyi6w17rvXhgH.UnAfafKqrcEWkmBbyuV05s9Kc26LacG', 'coach'),
+('Admin Sistema', 'admin@example.com', '$2b$12$iIGMUYJDV3g6YO9CnumkZuSjZn//fJZxVutmJRhNVvmgIaj2VtsPS', 'administrador');
 
 -- 🧾 Perfiles
 INSERT INTO user_profiles (
