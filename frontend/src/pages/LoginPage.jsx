@@ -64,6 +64,23 @@ const LoginPage = () => {
           </button>
         </form>
 
+        <section className="privacy-notice auth-policy" aria-labelledby="privacy-title-login">
+          <h2 id="privacy-title-login">Politica de privacidad</h2>
+          <p>
+            Al iniciar sesion, Mentoria trata los datos necesarios para verificar tu identidad,
+            proteger tu cuenta, cargar tu perfil y ofrecerte las funciones personalizadas de la
+            plataforma.
+          </p>
+          <p>
+            La informacion se usa para fines de operacion, seguridad, soporte, mejora del servicio
+            y cumplimiento de obligaciones aplicables. Puedes ejercer tus derechos de acceso,
+            rectificacion, cancelacion u oposicion por los canales de contacto de la plataforma.
+          </p>
+          <a href="/politica-de-proteccion-de-datos-personales.pdf" target="_blank" rel="noreferrer">
+            Ver politica de proteccion de datos personales
+          </a>
+        </section>
+
         <div className="auth-links">
           <Link to="/registro">Crear cuenta</Link>
           <Link to="/olvide-password">Olvide mi contrasena</Link>
