@@ -113,6 +113,11 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(express.static(path.join(path.dirname(import.meta.dirname), "frontend", "dist")));
+
+app.get('/', (request, response) => {
+  response.sendFile(path.join(path.dirname(import.meta.dirname), "frontend", "dist", "index.html"))
+});
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'mentoria-backend' });
@@ -760,12 +765,6 @@ app.post('/api/chat', requireLogin, async (req, res) => {
 
 app.use(notFoundHandler);
 app.use(errorHandler);
-
-app.use(express.static(path.join(path.dirname(import.meta.dirname), "frontend", "dist")));
-
-app.get('/', (request, response) => {
-  response.sendFile(path.join(path.dirname(import.meta.dirname), "frontend", "dist", "index.html"))
-})
 
 function getRedirectByUser(user) {
   if (user.rol === 'administrador') return '/app/admin/coaches';
