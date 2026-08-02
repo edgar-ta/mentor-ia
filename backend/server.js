@@ -37,6 +37,7 @@ import { sendPasswordResetEmail } from './lib/mailer.js';
 import { requireLogin, requireRole } from './lib/middleware.js';
 import { isStrongPassword } from './lib/security.js';
 import { getResourceBySlug, getSearchMeta, searchResources } from './lib/searchService.js';
+import path from 'path';
 
 dotenv.config();
 
@@ -759,6 +760,12 @@ app.post('/api/chat', requireLogin, async (req, res) => {
 
 app.use(notFoundHandler);
 app.use(errorHandler);
+
+app.use(express.static(path.join(path.dirname(import.meta.dirname), "frontend", "dist")));
+
+app.get('/', (request, response) => {
+  response.sendFile(path.join(path.dirname(import.meta.dirname), "frontend", "dist", "index.html"))
+})
 
 function getRedirectByUser(user) {
   if (user.rol === 'administrador') return '/app/admin/coaches';
