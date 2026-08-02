@@ -38,6 +38,7 @@ import { requireLogin, requireRole } from './lib/middleware.js';
 import { isStrongPassword } from './lib/security.js';
 import { getResourceBySlug, getSearchMeta, searchResources } from './lib/searchService.js';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -113,10 +114,14 @@ app.use(
   })
 );
 app.use(express.json());
-app.use(express.static(path.join(path.dirname(import.meta.dirname), "frontend", "dist")));
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.use(express.static(path.join(path.dirname(__dirname), "frontend", "dist")));
 
 app.get('/', (request, response) => {
-  response.sendFile(path.join(path.dirname(import.meta.dirname), "frontend", "dist", "index.html"))
+  response.sendFile(path.join(path.dirname(__dirname), "frontend", "dist", "index.html"));
 });
 
 app.get('/api/health', (_req, res) => {
