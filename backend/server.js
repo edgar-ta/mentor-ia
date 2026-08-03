@@ -768,6 +768,12 @@ app.post('/api/chat', requireLogin, async (req, res) => {
   }
 });
 
+app.get('*', (req, res) => {
+  res.sendFile(path.join(path.dirname(__dirname), "frontend", "dist", 'index.html'));
+});
+
+
+
 app.use(notFoundHandler);
 app.use(errorHandler);
 

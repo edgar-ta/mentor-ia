@@ -111,7 +111,6 @@ export async function buildUserSnapshotById(userId) {
        p.calories_auto_calculated,
        p.training_frequency,
        p.desired_pace,
-       p.recommended_exercises,
        p.current_weight_kg,
        p.target_weight_kg,
        p.height_cm,
