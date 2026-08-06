@@ -460,7 +460,7 @@ export async function updateUserProfile(userId, payload) {
       caloriesAutoCalculated,
       trainingFrequency,
       desiredPace,
-      recommendExercises: toJSON(recommendedExercises),
+      recommendedExercises,
       currentWeightKg,
       targetWeightKg,
       heightCm,
