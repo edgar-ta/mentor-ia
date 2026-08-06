@@ -558,10 +558,10 @@ app.get('/api/metrics', requireLogin, async (req, res) => {
 
     const [upcomingSessions] = await pool.query(
       `SELECT s.id, c.name AS client, s.topic,
-        DATE_FORMAT(s.date, '%d %b %Y') AS date, TIME_FORMAT(s.time, '%H:%i') AS time
+        DATE_FORMAT(s.date, '%d %b %Y') AS date, TIME_FORMAT(s.date, '%H:%i') AS time
        FROM sessions s
        JOIN clients c ON c.id = s.client_id
-       ORDER BY s.date, s.time
+       ORDER BY s.date
        LIMIT 6`
     );
 

@@ -51,6 +51,7 @@ CREATE TABLE user_profiles (
   assigned_coach_id INT NULL,
   coach_assigned_at DATETIME NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  recommended_exercises TEXT,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   FOREIGN KEY (assigned_coach_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
@@ -82,6 +83,8 @@ CREATE TABLE user_sessions (
   ip_address VARCHAR(80) NOT NULL,
   expires_at DATETIME NOT NULL,
   revoked_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT(NOW()),
+  last_activity_at DATETIME NOT NULL DEFAULT(NOW()),
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
@@ -97,6 +100,7 @@ CREATE TABLE clients (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   goal VARCHAR(200),
+  engagement INT NOT NULL,
   status ENUM('activo','riesgo','inactivo') DEFAULT 'activo'
 );
 
@@ -104,6 +108,7 @@ CREATE TABLE sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   client_id INT NOT NULL,
   topic VARCHAR(200),
+  date DATETIME,
   FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
 );
 
@@ -116,11 +121,15 @@ CREATE TABLE goals (
 CREATE TABLE campaigns (
   id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(180)
+  tag VARCHAR(64),
+  image VARCHAR(1024),
+  cta VARCHAR(256)
 );
 
 CREATE TABLE reminders (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(200)
+  title VARCHAR(200),
+  time_label VARCHAR(64)
 );
 
 CREATE TABLE mood (
