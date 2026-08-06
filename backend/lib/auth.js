@@ -238,7 +238,7 @@ export async function createSessionForUser(userId, req, res) {
         FROM user_sessions
         WHERE usuario_id = :usuarioId AND revoked_at IS NULL AND expires_at > NOW()
         ORDER BY created_at DESC
-        LIMIT 18446744073709551615 OFFSET :offsetValue
+        OFFSET :offsetValue
      )`,
     { usuarioId: userId, offsetValue: MAX_ACTIVE_SESSIONS }
   );
