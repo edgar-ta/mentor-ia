@@ -230,21 +230,32 @@ export async function createSessionForUser(userId, req, res) {
 
   await pool.query(`UPDATE usuarios SET ultimo_login_at = NOW() WHERE id = :id`, { id: userId });
 
-  await pool.query(
-    `UPDATE user_sessions
-     SET revoked_at = NOW()
-     WHERE id IN (
-        SELECT id 
-        FROM (
-          SELECT id
-          FROM user_sessions
-          WHERE usuario_id = :usuarioId AND revoked_at IS NULL AND expires_at > NOW()
-          ORDER BY created_at DESC
-          OFFSET :offsetValue
-        ) AS overflow_rows
-     )`,
-    { usuarioId: userId, offsetValue: MAX_ACTIVE_SESSIONS }
+  const [rows] = await pool.query(
+    `
+    SELECT id
+    FROM user_sessions
+    WHERE usuario_id = :usuarioId
+      AND revoked_at IS NULL
+      AND expires_at > NOW()
+    ORDER BY created_at DESC
+    `,
+    { usuarioId: userId }
   );
+
+  const idsToRevoke = rows
+    .slice(MAX_ACTIVE_SESSIONS)
+    .map(session => session.id);
+
+  if (idsToRevoke.length > 0) {
+    await pool.query(
+      `
+      UPDATE user_sessions
+      SET revoked_at = NOW()
+      WHERE id IN (:ids)
+      `,
+      { ids: idsToRevoke }
+    );
+  }
 
   setSessionCookie(res, token);
   return token;
