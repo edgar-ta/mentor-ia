@@ -234,13 +234,11 @@ export async function createSessionForUser(userId, req, res) {
     `UPDATE user_sessions
      SET revoked_at = NOW()
      WHERE id IN (
-       SELECT id FROM (
-         SELECT id
-         FROM user_sessions
-         WHERE usuario_id = :usuarioId AND revoked_at IS NULL AND expires_at > NOW()
-         ORDER BY created_at DESC
-         LIMIT 18446744073709551615 OFFSET :offsetValue
-       ) AS overflow_rows
+        SELECT id
+        FROM user_sessions
+        WHERE usuario_id = :usuarioId AND revoked_at IS NULL AND expires_at > NOW()
+        ORDER BY created_at DESC
+        LIMIT 18446744073709551615 OFFSET :offsetValue
      )`,
     { usuarioId: userId, offsetValue: MAX_ACTIVE_SESSIONS }
   );

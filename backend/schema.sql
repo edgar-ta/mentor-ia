@@ -81,6 +81,7 @@ CREATE TABLE user_sessions (
   user_agent VARCHAR(255) NOT NULL,
   ip_address VARCHAR(80) NOT NULL,
   expires_at DATETIME NOT NULL,
+  revoked_at DATETIME,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
