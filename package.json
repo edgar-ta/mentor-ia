@@ -5,19 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-
     "dev:backend": "node backend/server.js",
     "dev:frontend": "vite --config frontend/vite.config.js",
-
     "build": "vite build --config frontend/vite.config.js",
-
     "preview": "vite preview --config frontend/vite.config.js",
-
     "start": "node backend/server.js",
-
     "test:search": "node backend/scripts/search-smoke.mjs",
-
-    "lint": "echo \"lint not configured\""
+    "lint": "echo \"lint not configured\"",
+    "cy:run": "cypress run",
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js backend/tests/server.test.js"
   },
   "dependencies": {
     "axios": "^1.6.7",
@@ -39,6 +35,8 @@
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^9.0.0",
+    "cypress": "^15.20.0",
+    "jest": "^30.4.2",
     "vite": "^5.1.0"
   }
 }
