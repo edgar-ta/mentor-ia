@@ -7,3 +7,4 @@ backend/.env.example
 node_modules
 .env
 .env.*
+reports/load/

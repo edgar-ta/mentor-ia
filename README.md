@@ -30,6 +30,12 @@ npm run dev            # puerto 5173, proxy a 4000
 - El script `backend/schema.sql` crea la base, tablas (clients, sessions, goals, campaigns, reminders, mood) y carga datos iniciales.
 - El dashboard, CRM, agenda y chatbot leen directamente de MySQL; si el backend no responde se mostrarán errores (no datos mock).
 
+## Reporte de carga
+- Genera el build del frontend y levanta el backend: `npm run build` y `npm run start`.
+- En otra terminal ejecuta `npm run test:load`.
+- El reporte se guarda en `reports/load/` en formatos JSON y Markdown. Por defecto prueba `http://localhost:4000/` durante 30 segundos con 20 conexiones.
+- En PowerShell puedes ajustar la prueba asi: `$env:LOAD_TEST_CONNECTIONS=50; $env:LOAD_TEST_DURATION=60; npm run test:load`.
+
 ## Practica de busqueda
 - La ruta `/buscar` consume `GET /api/search` y `GET /api/search/meta`.
 - El catalogo de la practica vive en `backend/data/searchCatalog.js` con 60 registros.
